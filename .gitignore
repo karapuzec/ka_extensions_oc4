@@ -16,3 +16,5 @@
 /tmp_pack/
 .htaccess.txt
 x.bat
+/docs/
+/docgen/.phpdoc/

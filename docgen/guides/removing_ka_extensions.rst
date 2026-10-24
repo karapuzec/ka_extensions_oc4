@@ -1,46 +1,35 @@
 Removing Ka Extensions
 ======================
 
-Ka Extensions is a set of PHP/Twig files along with an OCMOD modification.
-Before removing it, make sure that no other extensions developed by our
-company are installed, as they may depend on Ka Extensions functionality.
+Before removing Ka Extensions uninstall the modules based on it (the modules listed on the
+*Extensions > Ka Extensions* page): first on the *Ka Extensions* page, then on the *Extensions > Installer*
+page. They do not work without the library, and OpenCart does not uninstall Ka Extensions while they are
+installed. Uninstalling a module on the Ka Extensions page deletes its settings.
 
-Removing the Ka Extensions library is similar to removing any other extension.
-In most cases, it is sufficient to delete only the modification, as the remaining
-files do not affect the store when the modification is removed.
+Steps
+-----
 
-Steps to Remove the Ka Extensions Modification
----------------------------------------------
+1. Open *Extensions > Modifications*, disable the *Ka Extensions Ocmod* modification and click
+   **Refresh**. Kamod is not started anymore.
+2. Open *Extensions > Installer* and click **Uninstall** next to *Ka Extensions*. OpenCart deletes the
+   ``extension/ka_extensions/`` directory and the modification.
+3. Refresh modifications again and check the admin area and the storefront.
+4. Clear the browser cache or check the store in a private browser window. If a cache plugin or
+   server cache is used, clear it too.
 
-1. Open the *Modifications* page in the store admin panel and delete the
-   ``ka-extensions`` record.
+What Stays in the Store
+-----------------------
 
-2. Refresh modifications.
+These files do not affect the store after the steps above. You can delete them:
 
-3. Clear the Twig cache. See this article for details:
-   https://www.ka-station.com/tickets/kb/faq.php?id=24
+- ``system/storage/cache.kamod/`` and ``system/storage/theme.kamod/`` - the kamod cache;
+- ``system/config/kamod.php`` - the name of the admin directory saved by kamod;
+- ``kamod.log``, ``kamod.errors.log``, ``ka_mail_log.log`` in the logs directory.
 
-4. Clear the VQMod cache and ``vqmod/*.cache`` files (if applicable).
-
-5. Clear the Lightning plugin cache (if applicable).
-
-6. Clear theme caches (for example, Journal 3 cache) if used.
-
-7. Be aware that additional caching may exist at the server level, but it
-   usually refreshes automatically.
-
-8. Check the website in an incognito/private browser window to ensure that
-   all changes are reflected and no cached data is shown.
-
-These steps are usually sufficient to ensure that a standard OpenCart store
-is no longer affected by the Ka Extensions library.
-
-Removing Library Files (Optional)
---------------------------------
-
-You may also remove files included with Ka Extensions. Since the file list may
-change between versions, it is recommended to compare your store files with the
-contents of the Ka Extensions archive.
-
-All files (not directories) located in the ``upload`` directory of the archive
-belong to Ka Extensions and can be safely deleted.
+During installation Ka Extensions adds a few lines to the beginning of ``system/framework.php``.
+They load ``extension/ocmod/system/framework.php`` (the copy of ``framework.php`` changed by
+OCMOD modifications) when it exists, so OCMOD modifications of ``framework.php`` keep working.
+The original file is saved as ``system/framework.php.<random>.bak``. To restore it, delete the lines
+between ``//ka: required by kamod`` and ``///ka`` or replace ``framework.php`` with the backup copy.
+Note that OpenCart 4.1 itself does not load this copy: after restoring the original file, OCMOD changes
+of ``framework.php`` made by other modifications stop working.

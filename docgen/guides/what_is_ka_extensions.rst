@@ -1,130 +1,72 @@
-What is "Ka Extensions"
-======================
+What Is Ka Extensions
+=====================
 
-"Ka Extensions" is a shared library for Opencart-based stores that provides a collection of helpful functions and classes
-used across multiple modules.
+Ka Extensions is a shared library for OpenCart 4 used by the modules of Karapuz Team
+(`ka-station.com <https://www.ka-station.com>`_). It is installed as a separate OpenCart extension
+with the code ``ka_extensions``, so updates and fixes are applied to all modules at once.
 
-It is distributed as a separate module so that updates and bug fixes can be applied centrally,
-without requiring updates to each individual module.
+Requirements: OpenCart 4.1.0.3 - 4.1.x, see :doc:`how_to_install_ka_extensions`.
 
-KaMod Engine
+Kamod Engine
 ------------
 
-The **KaMod Engine** is an alternative to the standard OpenCart modification systems such as OCMOD and VQMod.
+Kamod lets a module change OpenCart classes and templates by inheritance instead of patching
+the original files:
 
-Its primary goal is to allow developers to build robust modules without modifying core OpenCart files.
-Instead of patching files (as done by OCMOD/VQMod/Events), KaMod introduces an inheritance-based approach.
+- a module class extends the original controller, model or library class and overrides
+  only the methods it needs (see :doc:`overriding_core_files`);
+- several modules can extend the same class: kamod builds a chain where every class extends
+  the previous one;
+- twig templates are extended in the same way (see :doc:`twig_templates`);
+- a module can extend files of another module (see :doc:`overriding_other_modules`).
 
-Key features:
-
-- Define class inheritance to extend or override existing functionality
-- Override class methods using standard object-oriented principles
-- Extend or replace templates in a structured and maintainable way
-
-This approach results in cleaner, more maintainable, and more predictable module behavior.
-
+Kamod generates the resulting classes and templates in the kamod cache
+(``system/storage/cache.kamod/``) and loads them instead of the original files.
 
 KaPatch
 -------
 
-**KaPatch** is a component of the KaMod system that provides patching capabilities similar to OCMOD and VQMod.
+KaPatch is a part of kamod that makes small text changes in files, like OCMOD:
+plain text or regular expression replacement (see :doc:`apply_kapatch`).
 
-It allows developers to modify existing files using simple rules:
-
-- Direct text replacement
-- Regular expression-based replacement
-
-KaPatch is designed to be lightweight and easy to use for small, targeted modifications.
-
-
-Database Utilities
+Ka Extensions Page
 ------------------
 
-The library includes several utilities for working with the database more efficiently.
+Ka Extensions adds the *Extensions > Ka Extensions* page to the admin area. Modules based on
+the library (``"ka_type": "ka_extensions"`` in ``install.json``, see :doc:`install_json`) are listed
+there, installed, uninstalled and registered with a license key.
 
-Indirect database tools:
+Base Classes for Modules
+------------------------
 
-- **QueryBuilder** - simplifies building SQL queries
-- **ADBTable** - provides abstraction for working with database tables
+Classes in the ``\Opencart\Extension\KaExtensions\System`` namespace
+(``extension/ka_extensions/system/``):
 
-Direct database helpers:
+- ``Controller``, ``Model`` - base classes with the ``onLoad()`` hook and the ``kadb`` database helper;
+- ``TraitController`` - render helpers: ``disableRender()``, ``enableRender()``,
+  ``getRenderData()``, ``getRenderTemplate()``, ``showPage()``, top messages;
+- ``ControllerInstaller``, ``ControllerSettings`` - module installer and settings page
+  (see :doc:`settings_page`);
+- ``ControllerForm``, ``TraitControllerForm`` - forms built from a list of fields;
+- ``Db``, ``QB``, ``Tables`` - database helpers (see :doc:`database`);
+- ``Mail`` - emails from twig templates (see :doc:`mail`);
+- ``KaGlobal``, ``Language``, ``Store``, ``Arrays``, ``Format``, ``Curl``, ``UrlParams``,
+  ``Pagination`` - helpers.
 
-- **ka_insert**
-- **ka_update**
+The API reference of these classes is a part of this documentation.
 
-These helper functions accept array-based input, making queries easier to construct,
-modify, and maintain.
+Twig Functions
+--------------
 
+``t()``, ``has_t()``, ``linka()`` and other twig functions, and base page templates
+for the admin area (see :doc:`twig_templates`).
 
-Controller Utilities
---------------------
+Other Changes
+-------------
 
-Provides helper functionality for modifying controller behavior.
+The library also changes some standard behaviour through kamod:
 
-Example features:
-
-- Temporarily disabling output
-- Adjusting execution flow of parent controllers
-
-These tools are useful when extending or customizing existing controller logic.
-
-
-UI Components and Forms
------------------------
-
-Includes a set of reusable classes and templates for quickly building:
-
-- Standard pages
-- Entity forms
-
-These components help reduce development time and ensure consistency across modules.
-
-
-Extended Entity Support
------------------------
-
-Adds extended functionality for working with core OpenCart entities:
-
-- Languages
-- Stores
-- Users
-- Other system entities
-
-This simplifies interaction and manipulation of these entities in custom modules.
-
-
-Mail Functionality
-------------------
-
-Provides utilities for sending emails in a structured and reusable way.
-
-Includes:
-
-- Simplified mail submission
-- Integration-friendly design
-
-
-Mail Logging
-------------
-
-Extends standard mail functionality with detailed logging capabilities.
-
-This allows developers to:
-
-- Track email delivery attempts
-- Debug mail-related issues
-- Maintain audit logs of outgoing messages
-
-
-Performance Improvements and Fixes
----------------------------------
-
-Includes various optimizations and fixes for standard OpenCart behavior.
-
-These improvements aim to:
-
-- Increase performance
-- Resolve common issues
-- Enhance overall system stability
-
-
+- the *Ka Extensions* menu item and the ambulance icon with the number of kamod errors in the admin header;
+- missing language files of extensions fall back to English (``en-gb``);
+- email attachments can have their own file names;
+- user permissions include routes of extension controllers.

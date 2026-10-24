@@ -1,41 +1,50 @@
-Ka Extensions: Supported Constants
-=================================
+Useful Constants
+================
 
-Overview
---------
+Ka Extensions checks several PHP constants. Define them in ``config.php`` of the store root
+and in ``admin/config.php``, for example:
 
-**Ka Extensions** provides several useful constants that assist in development and debugging.
+.. code-block:: php
+
+    define('KAMOD_DEBUG', 1);
+
+The constants are checked with ``defined()``, so any value turns the feature on. Remove the line
+to turn it off.
 
 
 KAMOD_DEBUG
 -----------
 
-When the ``KAMOD_DEBUG`` constant is set to ``1``, the Kamod cache is automatically regenerated on every page reload.
+For development only:
 
-This is useful during development, as it removes the need to manually refresh the cache after making changes.
+- the kamod cache is rebuilt on every request, so changes in ``kamod`` directories of modules
+  are applied at once;
+- a locked kamod cache (another request is rebuilding it) does not stop the page;
+- when kamod fails to start, the request stops with the error message (``KAMOD DEBUG: ...``);
+- twig rendering errors are shown on the page and written to the error log. Without
+  ``KAMOD_DEBUG`` a template with an error is rendered as an empty string.
 
-**Important:**
-
-- This constant does **not** refresh the modifications cache.
-
-
-KALOG_MISSED_LABELS
--------------------
-
-When the ``KALOG_MISSED_LABELS`` constant is set to ``1``, Ka Extensions generates a log file named:
-
-::
-
-    missed_labels.log
-
-This file is created in the ``DIR_LOGS`` directory and contains a list of all language variables that are missing translations.
+The OCMOD modifications are not refreshed by this constant.
 
 
-KA_DEBUG_DEPRECATED
--------------------
+KAMOD_DEBUG_SUPPRESS_ERRORS
+---------------------------
 
-When the ``KA_DEBUG_DEPRECATED`` constant is set to ``1``, Ka Extensions throws errors whenever deprecated
-features are used. The Ka Extensions library is evolving, and from time to time some features become deprecated,
-so it is recommended to remove them from the code.
+Used together with ``KAMOD_DEBUG``: twig rendering errors are not shown and not logged, a template
+with an error is rendered as an empty string. The kamod cache is still rebuilt on every request.
 
-This flag is intended for developers and should not be used in a production environment.
+
+KA_EXTENSIONS_LOG_EMAILS
+------------------------
+
+Logs every email sent through OpenCart (``\Opencart\System\Library\Mail``): the sender, recipients,
+subject and the result are written to ``ka_mail_log.log`` in the logs directory. The value must not be
+empty, e.g. ``define('KA_EXTENSIONS_LOG_EMAILS', 1);``. See :doc:`mail`.
+
+
+KA_STORE_URL
+------------
+
+Changes the URL of the ka-station.com server used for license registration and the information shown on
+the Ka Extensions page. The default value is ``https://www.ka-station.com/``. It is intended for
+development and testing of the server side only.

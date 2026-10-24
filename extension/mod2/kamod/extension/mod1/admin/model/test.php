@@ -1,8 +1,8 @@
 <?php
 
-namespace Opencart\Admin\Model\Extension\Mod2\Kamod;
+namespace Opencart\Admin\Model\Extension\Mod2\Mod1;
 
-class Test extends \Opencart\Admin\Model\Extension\Mod1\Model {
+class Test extends \Opencart\Admin\Model\Extension\Mod1\Test {
 	
 	public function getTitle() {
 		$title = parent::getTitle();

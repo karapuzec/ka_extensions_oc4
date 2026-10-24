@@ -30,5 +30,6 @@
   </transformations>
   <parameters>
     <parameter key="twig-debug">true</parameter>
+    <parameter key="color">purple</parameter>
   </parameters>
 </template>

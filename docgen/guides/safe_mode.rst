@@ -1,58 +1,41 @@
-'Safe Mode' with Ka Extensions
-==============================
+Safe Mode
+=========
 
-Ka Extensions for OpenCart 4 and Ka Extensions for OpenCart 3 (since version 4.1.1.0)
-include a safe operation mode ("Safe Mode") for administrators. It can be used when
-the store has completely crashed and other recovery options do not work.
+Safe mode is a way to open the admin area of the store without kamod. It can help when the admin area
+does not work because of a kamod class or template of a module.
 
-In Safe Mode, the store uses default OpenCart files with minimal inclusion of modified
-files. It ignores:
+In safe mode kamod is not started in the admin area: OpenCart uses its original classes and templates,
+the kamod cache is ignored. OCMOD modifications still work. The storefront is not affected.
 
-- Files in the ``kamod`` cache
-- Modification cache (for OpenCart 3)
-- VQMod files (partially)
+Modules based on Ka Extensions and the *Ka Extensions* page may not work in safe mode. Use it only to fix
+the store: for example, to disable or uninstall a module on the *Extensions > Installer* page.
 
-This mode should only be used for fixing or adjusting store settings. Avoid removing
-the Ka Extensions library while in Safe Mode, as this will immediately disable the mode.
-
-How to Activate Safe Mode
+How to Turn On Safe Mode
 ------------------------
 
-To open the store in Safe Mode, add the ``route=ka_safe_mode`` parameter to the
-store admin URL.
-
-For example, if your admin URL is:
+Add the ``route=ka_safe_mode`` parameter to the admin URL. If your admin URL is
 
 ::
 
    https://www.mystore.com/admin/index.php
 
-Then open:
+open
 
 ::
 
    https://www.mystore.com/admin/index.php?route=ka_safe_mode
 
-Additional Parameter for OpenCart 3
-----------------------------------
+Ka Extensions sets the ``ka_safe_mode`` cookie, and safe mode is on for the next admin requests of this
+browser. The page itself shows the login form or an error page (*Permission Denied!*, *Page Not Found*)
+because there is no page for this route. This is expected: log in if needed and open the page you need.
 
-In Ka Extensions version 4.1.1.3 (for OpenCart 3) and newer, an additional
-``code`` parameter is required. This code is defined on the *Ka Extensions settings* page.
+.. note::
 
-The URL will look like this (replace ``NNNNN`` with your actual code):
+    In the current version safe mode does not require a code. A protection code, like in Ka Extensions
+    for OpenCart 3, is planned.
 
-::
+How to Turn Off Safe Mode
+-------------------------
 
-   https://www.mystore.com/admin/index.php?route=ka_safe_mode&code=NNNNN
-
-Login Behavior
---------------
-
-When Safe Mode is activated, you will be prompted to log in with an administrator account.
-After a successful login, you may see a "Page not found" message. This is expected behavior,
-as there is no actual page assigned to this route.
-
-How to Exit Safe Mode
---------------------
-
-To exit Safe Mode, simply close your browser and open it again.
+The cookie is kept until the browser is closed. Close all windows of the browser and open it again,
+or delete the ``ka_safe_mode`` cookie of the store in the browser settings.

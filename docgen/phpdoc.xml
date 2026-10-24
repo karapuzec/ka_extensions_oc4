@@ -5,10 +5,10 @@
         xmlns="https://www.phpdoc.org"
         xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/phpDocumentor/phpDocumentor/master/data/xsd/phpdoc.xsd"
 >
-	<title>Ka Extensions (for Opencart 4)</title>
+	<title>Ka Extensions for OpenCart 4</title>
     <template name="ka" location="templates" />
     <paths>
-        <output>../docs</output>
+        <output>../tmp_pack/docs</output>
     </paths>
     <version number="3.0.0">
         <api>
