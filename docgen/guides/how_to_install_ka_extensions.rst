@@ -7,6 +7,9 @@ Ka Extensions is installed as a standard OpenCart 4 extension. The archive is ca
 
     ka_extensions.ocmod.zip
 
+Download the latest version from the `Releases <https://github.com/karapuzec/ka_extensions_oc4/releases>`_
+page of the `GitHub repository <https://github.com/karapuzec/ka_extensions_oc4>`_.
+
 .. note::
 
     OpenCart 4 uses the archive name as the extension code and the directory name

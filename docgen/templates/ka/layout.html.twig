@@ -30,6 +30,13 @@
     {% endblock %}
 </head>
 <body id="top">
+    {% set topMenu = {
+        'menu': [
+            { 'name': 'All Documentation', 'url': 'https://www.ka-station.com/documentation', 'iconClass': 'fas fa-book' },
+            { 'name': 'GitHub', 'url': 'https://github.com/karapuzec/ka_extensions_oc4', 'iconClass': 'fab fa-github' },
+            { 'name': 'Releases', 'url': 'https://github.com/karapuzec/ka_extensions_oc4/releases', 'iconClass': 'fas fa-download' }
+        ]
+    } %}
     {% include 'components/header.html.twig' %}
     {% include 'components/oc4-banner.html.twig' %}
 
