@@ -1,3 +1,14 @@
+ver 5.1.1.1
+- safe mode code: set it on the Ka Extensions page, open admin/index.php?route=ka_safe_mode&code=<code> to start the admin area without kamod; route=ka_safe_mode without a code turns it off;
+- Mail: the store mail engine and SMTP settings are used, MailException namespace fixed, sendContent() with common header/footer templates, translated subject;
+- QB: several orderBy() and groupBy() calls are joined;
+- KaPatch: a search string that is not found is logged to kamod.errors.log (unless skip="true"), a file is not emptied on an unsupported patch version;
+- kamod: kapatch patches of a twig template are kept when modules extend it with child templates;
+- Theme Editor: saving a template is not a fatal error anymore, templates changed in the Theme Editor work with module child templates;
+- Store: serialized settings are read correctly; KaURLify LogicException namespace fixed;
+- ControllerInstaller: properties are protected;
+- typos, docblocks and documentation guides.
+
 ver 5.1.1.0
 - fully refactored ka-extensions engine. It does not depend on vendor.php file anymore. Namespace rules has changed;
 - compatibility lifted up to Opencart 4.1.0.3 (with properly working ocmod)

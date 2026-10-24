@@ -20,7 +20,7 @@ abstract class ControllerInstaller extends Controller {
 
 	// contstants
 	//
-	public static $ka_extensions_version = '5.1.1.0';
+	public static $ka_extensions_version = '5.1.1.1';
 
 	// this field has to be specified by the extension
 	protected $ext_code  = '';
