@@ -151,14 +151,20 @@ trait TraitControllerForm {
 			}
 		
 			if ($field['type'] == 'number') {
+				// an empty value is checked by 'required' only, a non-required empty field has no limits
+				if (is_string($post[$code]) && !strlen(trim($post[$code]))) {
+					return true;
+				}
 				if (isset($field['min_value'])) {
 					if ($field['min_value'] > $post[$code]) {
 						$this->errors[$code] = sprintf($this->language->get("Minimum value is %s"), $field['min_value']);
+						return false;
 					}
 				} 
 				if (isset($field['max_value'])) {
 					if ($field['max_value'] < $post[$code]) {
 						$this->errors[$code] = sprintf($this->language->get("Maximum value is %s"), $field['max_value']);
+						return false;
 					}
 				}
 			}
