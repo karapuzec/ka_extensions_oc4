@@ -462,10 +462,129 @@ class KaExtTest {
 		$this->checkNoErrors($this->httpUrl($this->base_url . 'index.php'), 'storefront home after uninstall');
 	}
 
+	/*
+		Starts the test license server (fixtures/license_server/router.php) and points KA_STORE_URL of the
+		admin config to it. Returns [config file, log file].
+	*/
+	protected function startLicenseServer() {
+		$port = (int)$this->opt['port'] + 1000;
+		$config = $this->opt['work-dir'] . '/license_server.json';
+		$log    = $this->opt['work-dir'] . '/license_server.log';
+		file_put_contents($config, '{}');
+		file_put_contents($log, '');
+		exec('KA_TEST_LICENSE_SERVER_CONFIG=' . escapeshellarg($config) . ' KA_TEST_LICENSE_SERVER_LOG=' . escapeshellarg($log)
+			. " nohup php -S 127.0.0.1:$port " . escapeshellarg(__DIR__ . '/fixtures/license_server/router.php')
+			. ' > ' . escapeshellarg($this->opt['work-dir'] . '/license_server.out') . ' 2>&1 &');
+		for ($i = 0; $i < 50 && !@fsockopen('127.0.0.1', $port); $i++) {
+			usleep(100000);
+		}
+
+		$admin_config = $this->store_dir . '/admin/config.php';
+		$text = file_get_contents($admin_config);
+		if (strpos($text, 'KA_STORE_URL') === false) {
+			file_put_contents($admin_config, $text . "\ndefine('KA_STORE_URL', 'http://127.0.0.1:$port/');\n");
+			// the opcache of the store server checks timestamps of files every 2 seconds
+			sleep(3);
+		}
+
+		// test modules: only install.json is needed for the list of modules
+		foreach (array('ka_lic_paid', 'ka_lic_free', 'ka_lic_expired', 'ka_lic_dup') as $code) {
+			@mkdir($this->store_dir . '/extension/' . $code, 0777, true);
+			file_put_contents($this->store_dir . '/extension/' . $code . '/install.json',
+				json_encode(array('name' => 'License test ' . $code, 'version' => '1.0.0.0', 'ka_type' => 'ka_extensions')));
+		}
+
+		return array($config, $log, $port);
+	}
+
+	protected function stopLicenseServer($port) {
+		exec("pkill -f 'php -S 127.0.0.1:" . $port . "'");
+		$admin_config = $this->store_dir . '/admin/config.php';
+		file_put_contents($admin_config, preg_replace("/\ndefine\('KA_STORE_URL'[^\n]*\n/", '', file_get_contents($admin_config)));
+		foreach (array('ka_lic_paid', 'ka_lic_free', 'ka_lic_expired', 'ka_lic_dup') as $code) {
+			$this->sh('rm -rf ' . escapeshellarg($this->store_dir . '/extension/' . $code));
+		}
+		$this->query("DELETE FROM oc_setting WHERE `code` = 'kareg'");
+	}
+
+	protected function licenseRequests($log) {
+		$result = array();
+		foreach (file($log, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+			$result[] = json_decode($line, true);
+		}
+		file_put_contents($log, '');
+		return $result;
+	}
+
+	protected function kareg($code) {
+		$value = $this->value("SELECT `value` FROM oc_setting WHERE `code` = 'kareg' AND `key` = 'kareg" . $this->db->real_escape_string($code) . "'");
+		return $value ? json_decode($value, true) : null;
+	}
+
+	/*
+		The license requests of the Ka Extensions page: checkModules (api_version 1) with all modules and the
+		edition oc4, the fallback to the old domain_info request, register_key with api_version.
+	*/
+	protected function testLicenseServer() {
+		list($config, $log, $port) = $this->startLicenseServer();
+		$states = array('ka_lic_paid' => 'registered', 'ka_lic_free' => 'free', 'ka_lic_expired' => 'expired', 'ka_lic_dup@oc3' => 'registered');
+
+		// the new server
+		file_put_contents($config, json_encode(array('mode' => 'new', 'modules' => $states, 'key' => 'GOOD-KEY')));
+		$resp = $this->http('extension/ka_extensions/extensions');
+		$this->checkNoErrors($resp, 'Ka Extensions page with the new license server');
+		$requests = $this->licenseRequests($log);
+		$this->check(count($requests) == 1 && $requests[0]['route'] == 'extension/domain_info', 'one domain_info request ' . json_encode($requests));
+		$post = $requests[0]['post'];
+		$this->check(($post['api_version'] ?? '') === '1' && ($post['opencart_version'] ?? '') === $this->getOcVersion(), 'api_version and opencart_version are sent');
+		$found = array();
+		foreach ($post['modules'] ?? array() as $module) {
+			$found[$module['code']] = $module;
+		}
+		$this->check(count(array_intersect_key($found, array_flip(array('ka_lic_paid', 'ka_lic_free', 'ka_lic_expired', 'ka_lic_dup')))) == 4, 'all modules are sent');
+		$this->check(($found['ka_lic_paid'] ?? null) === array('vendor' => 'ka_extensions', 'code' => 'ka_lic_paid', 'edition' => 'oc4'), 'vendor, code and edition oc4');
+		$this->check(!empty($this->kareg('ka_lic_paid')['is_registered']) && ($this->kareg('ka_lic_paid')['expiry_date'] ?? '') == '2030-01-01', 'registered module is saved with the expiry date');
+		$this->check(!empty($this->kareg('ka_lic_free')['is_free']), 'free module');
+		$this->check(is_null($this->kareg('ka_lic_expired')), 'expired module is not registered');
+		$this->check(is_null($this->kareg('ka_lic_dup')), 'the same code of the oc3 edition does not register the oc4 module');
+
+		// an error of the new request: the old request
+		file_put_contents($config, json_encode(array('mode' => 'error', 'modules' => $states, 'key' => 'GOOD-KEY')));
+		$this->http('extension/ka_extensions/extensions');
+		$requests = $this->licenseRequests($log);
+		$this->check(count($requests) == 2 && !isset($requests[1]['post']['api_version']) && array_keys($requests[1]['post']) == array('url'), 'error: the old request follows');
+		$this->check(!empty($this->kareg('ka_lic_expired')['is_registered']), 'the old answer is saved as before');
+
+		// the old server
+		$this->query("DELETE FROM oc_setting WHERE `code` = 'kareg'");
+		file_put_contents($config, json_encode(array('mode' => 'old', 'modules' => array('ka_lic_paid' => 'registered'), 'key' => 'GOOD-KEY')));
+		$this->http('extension/ka_extensions/extensions');
+		$this->check(count($this->licenseRequests($log)) == 1, 'old server: one request');
+		$this->check(!empty($this->kareg('ka_lic_paid')['is_registered']), 'old server: the old answer is saved');
+
+		// register_key
+		foreach (array('new', 'old') as $mode) {
+			$this->query("DELETE FROM oc_setting WHERE `code` = 'kareg'");
+			file_put_contents($config, json_encode(array('mode' => $mode, 'modules' => array(), 'key' => 'GOOD-KEY')));
+			$resp = $this->http('extension/ka_extensions/extensions.activateKey', array('license_key' => 'WRONG', 'extension' => 'ka_lic_paid'));
+			$json = json_decode($resp['body'], true);
+			$this->check(!empty($json['error']), "$mode server: a wrong key is refused");
+			$resp = $this->http('extension/ka_extensions/extensions.activateKey', array('license_key' => 'GOOD-KEY', 'extension' => 'ka_lic_paid'));
+			$json = json_decode($resp['body'], true);
+			$this->check(!empty($json['redirect']), "$mode server: the right key is registered " . $resp['body']);
+			$requests = $this->licenseRequests($log);
+			$last = end($requests)['post'];
+			$this->check(($last['api_version'] ?? '') === '1' && ($last['code'] ?? '') === 'ka_lic_paid' && !isset($last['edition']), "$mode server: register_key with api_version, without edition");
+			$this->check(!empty($this->kareg('ka_lic_paid')['is_registered']), "$mode server: the registration is saved");
+		}
+
+		$this->stopLicenseServer($port);
+	}
+
 	public function run() {
 		$this->testPackage();
 		$this->setup();
-		$tests = array('testInstall', 'testModification', 'testMenu', 'testSafeMode', 'testStorefront', 'testUninstall');
+		$tests = array('testInstall', 'testModification', 'testMenu', 'testLicenseServer', 'testSafeMode', 'testStorefront', 'testUninstall');
 		if (!empty($this->opt['tests'])) {
 			$tests = explode(',', $this->opt['tests']);
 		} elseif (isset($this->opt['keep'])) {

@@ -20,6 +20,10 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 
 	protected $kacurl;
 
+	// the version of the license server protocol (checkModules, register_key with api_version)
+	protected $license_api_version = 1;
+
+
 	protected function onLoad() {
 
 		$this->kacurl = new Curl();
@@ -93,6 +97,19 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 		if (!empty($edition)) {
 			$data['edition'] = $edition;
 		}
+
+		// a new license server answers in the format of api_version, an old one ignores these fields.
+		// The edition is not added here: the old server adds it to the code ('code@oc4'), a new one takes
+		// the edition of opencart_version when it is not sent
+		//
+		$data += array(
+			'api_version'      => $this->license_api_version,
+			'vendor'           => 'ka_extensions',
+			'code'             => $extension,
+			'opencart_version' => VERSION,
+		);
+
+
 		
 		$request_url = KaGlobal::getKaStoreURL() . '?route=extension/register_key';
 
@@ -110,11 +127,21 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 			return false;
 		}
 		
-		$result = json_decode($result, true);		
+		$result = json_decode($result, true);
+
+		if (isset($result['api_version'])) {
+			if (empty($result['result']) || $result['result'] != 'ok') {
+				$this->lastError = empty($result['message']) ? 'The license key was not accepted.' : $result['message'];
+				return false;
+			}
+			$result['ext_code'] = $extension;
+		}
+
 		if (!empty($result['error'])) {
 			$this->lastError = $result['error'];
 			return false;
 		}	
+
 
 		
 		if (empty($result['ext_code'])) {
@@ -131,6 +158,114 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 		return true;
 	}
 	
+
+	/*
+		Returns the edition of license codes for this store: 'oc4' for Opencart 4.x
+	*/
+	public function getStoreEdition() {
+		return 'oc' . (int)VERSION;
+	}
+
+
+	/*
+		Returns modules of Ka Extensions in the store (extension folders with 'ka_type' = 'ka_extensions' in
+		install.json): [code => ['vendor' => .., 'code' => .., 'edition' => ..]]. The edition comes from
+		install.json ('edition'), the store edition by default.
+	*/
+	public function getLicenseModules() {
+
+		$modules = array();
+		foreach (glob(DIR_EXTENSION . '*/install.json') ?: array() as $file) {
+			$info = json_decode((string)file_get_contents($file), true);
+			if (empty($info['ka_type']) || $info['ka_type'] != 'ka_extensions') {
+				continue;
+			}
+			$code = basename(dirname($file));
+			$modules[$code] = array(
+				'vendor'  => 'ka_extensions',
+				'code'    => $code,
+				'edition' => empty($info['edition']) ? $this->getStoreEdition() : $info['edition'],
+			);
+		}
+
+		return $modules;
+	}
+
+
+	/*
+		Requests the state of the modules from the license server (checkModules, api_version 1) through the old
+		domain_info url. Returns extensions in the format of the old domain_info answer (see saveRegAll()):
+			[code => ['is_registered' => 1, ...] or ['is_free' => 1, ...]]
+		An old server ignores api_version and answers in the old format, it is returned as it is.
+		Returns null on an error, the caller sends the old request then.
+	*/
+	public function checkModules() {
+
+		$modules = $this->getLicenseModules();
+
+		$data = array(
+			'url'              => HTTP_CATALOG,
+			'api_version'      => $this->license_api_version,
+			'opencart_version' => VERSION,
+			'modules'          => array_values($modules),
+		);
+
+		$result = $this->kacurl->request(KaGlobal::getKaStoreURL() . '?route=extension/domain_info', $data);
+		$result = empty($result) ? null : json_decode($result, true);
+		if (!is_array($result) || empty($result['result']) || $result['result'] != 'ok') {
+			return null;
+		}
+
+		if (!isset($result['api_version'])) {
+			return isset($result['extensions']) ? $result['extensions'] : null;
+		}
+
+		if (!isset($result['modules']) || !is_array($result['modules'])) {
+			return null;
+		}
+
+		return $this->getExtensionsByModules($result['modules'], $modules);
+	}
+
+
+	/*
+		Converts modules of the checkModules answer to the old extensions format. Unregistered and expired
+		modules are not in the list (as in the old format).
+	*/
+	protected function getExtensionsByModules($response_modules, $modules) {
+
+		$codes = array_keys($modules);
+
+		$extensions = array();
+		foreach (array_values($response_modules) as $idx => $module) {
+			if (!isset($codes[$idx]) || empty($module['status'])) {
+				continue;
+			}
+			$code = $codes[$idx];
+
+			if ($module['status'] == 'registered') {
+				$masked_key = isset($module['masked_key']) ? $module['masked_key'] : '';
+				$extensions[$code] = array(
+					'masked_key'    => $masked_key,
+					'license_key'   => $masked_key,
+					'is_registered' => 1,
+				);
+				if (!empty($module['expiry_at'])) {
+					$extensions[$code]['expiry_date'] = substr($module['expiry_at'], 0, 10);
+				}
+			} elseif ($module['status'] == 'free') {
+				$extensions[$code] = array(
+					'license_key' => '',
+					'masked_key'  => '',
+					'expiry_date' => '',
+					'is_free'     => 1,
+				);
+			}
+		}
+
+		return $extensions;
+	}
+
 
 	public function isRegistered($extension_code) {
 		$ka_reg = $this->model_setting_setting->getSetting('kareg');

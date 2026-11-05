@@ -1,3 +1,6 @@
+ver 5.1.1.2 (not released)
+- Licenses: the Ka Extensions page asks the license server for the state of all Ka Extensions modules with one request (api_version 1, checkModules through the old domain_info url): vendor ka_extensions, code, edition (install.json 'edition' or oc4), the Opencart version; registered and free modules are saved as before, unregistered and expired ones are not registered. An old server answers in the old format; on an error answer the old request is sent. register_key gets api_version, vendor, code and opencart_version (an old server ignores them); tests/run.php testLicenseServer with a local test server (tests/fixtures/license_server);
+
 ver 5.1.1.1
 - safe mode code: set it on the Ka Extensions page, open admin/index.php?route=ka_safe_mode&code=<code> to start the admin area without kamod; route=ka_safe_mode without a code turns it off;
 - Mail: the store mail engine and SMTP settings are used, MailException namespace fixed, sendContent() with common header/footer templates, translated subject;

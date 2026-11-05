@@ -273,7 +273,16 @@ class Extensions extends \Opencart\Extension\KaExtensions\System\Controller {
 		
 	*/
 	protected function getInfoByDomain() {
+
+		// the new request; null - an error or the server does not support it, the old request is sent
+		//
+		$extensions = $this->model_extension_ka_extensions_common->checkModules();
+		if (!is_null($extensions)) {
+			return $extensions;
+		}
+
 		$kacurl = new Curl();
+
 		
 		$request_url = KaGlobal::getKaStoreURL() . "?route=extension/domain_info";
 		
