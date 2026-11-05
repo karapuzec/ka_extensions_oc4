@@ -128,29 +128,17 @@ class KaExtTest {
 		}
 		$log = $this->store_dir . '/system/storage/logs/error.log';
 		if (is_file($log)) {
-			$text = trim(file_get_contents($log));
+			// the library logs a failed request to the license server: the tests do not use a real one
+			$lines = preg_split('/\n(?=\d{4}-\d\d-\d\d \d\d:\d\d:\d\d - )/', trim(file_get_contents($log)));
+			$text = trim(implode("\n", array_filter($lines, function($line) {
+				return strpos($line, 'checkModules failed: ') === false;
+			})));
 			if ($text !== '') {
 				$errors[] = 'error.log: ' . substr($text, 0, 1500);
 				file_put_contents($log, '');
 			}
 		}
 		return $errors;
-	}
-
-	/*
-		As checkNoErrors() but the lines of error.log about the failed request to the license server are expected
-		(the library logs them when the server is not available).
-	*/
-	protected function checkNoServerErrors($resp, $title) {
-		$log = $this->store_dir . '/system/storage/logs/error.log';
-		if (is_file($log)) {
-			$lines = preg_split('/\n(?=\d{4}-\d\d-\d\d \d\d:\d\d:\d\d - )/', trim(file_get_contents($log)));
-			$lines = array_filter($lines, function($line) {
-				return $line !== '' && strpos($line, 'A request to the license registration server failed') === false;
-			});
-			file_put_contents($log, implode("\n", $lines));
-		}
-		$this->checkNoErrors($resp, $title);
 	}
 
 	protected function checkNoErrors($resp, $title) {
@@ -529,6 +517,8 @@ class KaExtTest {
 		foreach (file($log, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
 			$result[] = json_decode($line, true);
 		}
+		$old = array_intersect(array_column($result, 'route'), array('extension/domain_info', 'extension/register_key'));
+		$this->check(empty($old), 'the old scripts domain_info, register_key are not called ' . implode(', ', $old));
 		file_put_contents($log, '');
 		return $result;
 	}
@@ -540,8 +530,8 @@ class KaExtTest {
 
 	/*
 		The license requests of the Ka Extensions page: the API of ka_licenses (api/checkModules with all modules
-		and the edition oc4, api/linkLicense), the fallback to the old domain_info / register_key requests
-		of an old server, a license server that is not available.
+		and the edition oc4, api/linkLicense), the old domain_info / register_key scripts
+		are never called, a license server that is not available (also an old server: 404 of the API).
 	*/
 	protected function testLicenseServer() {
 		list($config, $log, $port) = $this->startLicenseServer();
@@ -568,19 +558,8 @@ class KaExtTest {
 		$this->check(is_null($this->kareg('ka_lic_expired')), 'expired module is not registered');
 		$this->check(is_null($this->kareg('ka_lic_dup')), 'the same code of the oc3 edition does not register the oc4 module');
 
-		// an error answer of the API and an old server (404 of the API): the old domain_info request as before
-		foreach (array('error', 'old') as $mode) {
-			$this->query("DELETE FROM oc_setting WHERE `code` = 'kareg'");
-			file_put_contents($config, json_encode(array('mode' => $mode, 'modules' => array('ka_lic_paid' => 'registered', 'ka_lic_expired' => 'expired'), 'key' => 'GOOD-KEY')));
-			$this->http('extension/ka_extensions/extensions');
-			$requests = $this->licenseRequests($log);
-			$this->check(array_column($requests, 'route') == array($api . 'checkModules', 'extension/domain_info') && array_keys($requests[1]['post']) == array('url'),
-				"$mode: the old request follows " . json_encode($requests));
-			$this->check(!empty($this->kareg('ka_lic_paid')['is_registered']) && !empty($this->kareg('ka_lic_expired')['is_registered']), "$mode: the old answer is saved as before");
-		}
-
 		// registration of a key
-		foreach (array('new' => array($api . 'linkLicense'), 'old' => array($api . 'linkLicense', 'extension/register_key')) as $mode => $routes) {
+		foreach (array('new' => array($api . 'linkLicense')) as $mode => $routes) {
 			$this->query("DELETE FROM oc_setting WHERE `code` = 'kareg'");
 			file_put_contents($config, json_encode(array('mode' => $mode, 'modules' => array(), 'key' => 'GOOD-KEY')));
 			$resp = $this->http('extension/ka_extensions/extensions.activateKey', array('license_key' => 'WRONG', 'extension' => 'ka_lic_paid'));
@@ -592,19 +571,15 @@ class KaExtTest {
 			$this->check(!empty($json['redirect']), "$mode server: the right key is registered " . $resp['body']);
 			$requests = $this->licenseRequests($log);
 			$this->check(array_column($requests, 'route') == $routes, "$mode server: the requests " . json_encode($requests));
-			if ($mode == 'new') {
-				$this->check($requests[0]['post'] == array('api_version' => '1', 'license_key' => 'GOOD-KEY', 'surface_uri' => $this->base_url, 'vendor' => 'ka_extensions',
+			$this->check($requests[0]['post'] == array('api_version' => '1', 'license_key' => 'GOOD-KEY', 'surface_uri' => $this->base_url, 'vendor' => 'ka_extensions',
 					'code' => 'ka_lic_paid', 'edition' => 'oc4', 'opencart_version' => $this->getOcVersion()), 'linkLicense fields ' . json_encode($requests[0]['post']));
-			} else {
-				$this->check(array_keys($requests[1]['post']) == array('key', 'url', 'extension'), 'old server: register_key as before');
-			}
 			$this->check(!empty($this->kareg('ka_lic_paid')['is_registered']), "$mode server: the registration is saved");
 		}
 
 		// the license server is not available: nothing is changed, modules are not disabled or shown as unlicensed
 		$saved = array('masked_key' => 'IJKL-XXXX-XXXX-XXXX-XXXX', 'license_key' => 'IJKL-XXXX-XXXX-XXXX-XXXX', 'expiry_date' => '2030-01-01',
 			'is_registered' => 1, 'url' => $this->base_url);
-		foreach (array('500', 'empty', 'invalid', 'timeout', 'down') as $mode) {
+		foreach (array('old', 'error', '500', 'empty', 'invalid', 'timeout', 'down') as $mode) {
 			$this->query("DELETE FROM oc_setting WHERE `code` = 'kareg'");
 			$this->query("INSERT INTO oc_setting SET store_id = 0, `code` = 'kareg', `key` = 'karegka_lic_paid', `value` = '"
 				. $this->db->real_escape_string(json_encode($saved)) . "', serialized = 1");
@@ -617,9 +592,9 @@ class KaExtTest {
 				file_put_contents($config, json_encode(array('mode' => $mode, 'modules' => array('ka_lic_paid' => 'registered'), 'key' => 'GOOD-KEY')));
 			}
 			$resp = $this->http('extension/ka_extensions/extensions');
-			$this->checkNoServerErrors($resp, "$mode: Ka Extensions page");
+			$this->checkNoErrors($resp, "$mode: Ka Extensions page");
 			if ($mode != 'down') {
-				$this->check(array_column($this->licenseRequests($log), 'route') == array($api . 'checkModules', 'extension/domain_info'), "$mode: the API, then the old request");
+				$this->check(array_column($this->licenseRequests($log), 'route') == array($api . 'checkModules'), "$mode: one request to the API");
 			}
 			$this->check(strpos($resp['body'], 'IJKL-XXXX-XXXX-XXXX-XXXX') !== false, "$mode: the module is shown as registered");
 			$this->check($this->kareg('ka_lic_paid') === $saved, "$mode: the saved state is kept");
@@ -628,8 +603,10 @@ class KaExtTest {
 			$resp = $this->http('extension/ka_extensions/extensions.activateKey', array('license_key' => 'GOOD-KEY', 'extension' => 'ka_lic_paid'));
 			$json = json_decode($resp['body'], true);
 			$this->check(!empty($json['error']) && $this->kareg('ka_lic_paid') === $saved, "$mode: the registration fails with a message, nothing is changed");
-			$this->checkNoServerErrors($resp, "$mode: registration");
-			$this->licenseRequests($log);
+			$this->checkNoErrors($resp, "$mode: registration");
+			if ($mode != 'down') {
+				$this->check(array_column($this->licenseRequests($log), 'route') == array($api . 'linkLicense'), "$mode: registration: one request to the API");
+			}
 		}
 
 		$this->stopLicenseServer($port);

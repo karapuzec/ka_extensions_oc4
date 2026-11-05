@@ -6,7 +6,8 @@
 	The test writes the configuration to KA_TEST_LICENSE_SERVER_CONFIG (json):
 		mode     - 'new'   ka-station with ka_licenses 1.0.1.4: the API api/checkModules, api/linkLicense and
 		                   the old scripts domain_info, register_key (old answers only),
-		           'old'   an old ka-station: the API routes give a 404 page, the old scripts answer,
+		           'old'   an old ka-station: the API routes give a 404 page (the old scripts answer, the tests check
+		                   that the library does not call them),
 		           'error' the API answers with errors, the old scripts answer,
 		           failures of all routes: '500' (HTTP 500 with a page), 'empty' (an empty answer),
 		           'invalid' (not json), 'timeout' (the answer after the curl timeout of the library, 8 s)

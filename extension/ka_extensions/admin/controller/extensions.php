@@ -7,7 +7,6 @@
 
 namespace Opencart\Admin\Controller\Extension\KaExtensions;
 
-use \Opencart\Extension\KaExtensions\System\Curl;
 use \Opencart\Extension\KaExtensions\System\KaGlobal;
 use \Opencart\Extension\KaExtensions\System\ControllerInstaller;
 use \extension\ka_extensions\KamodManager;
@@ -274,54 +273,15 @@ class Extensions extends \Opencart\Extension\KaExtensions\System\Controller {
 	*/
 	protected function getInfoByDomain() {
 
-		// the new request; null - an error or the server does not support it, the old request is sent
+		// null - the server is not available or returned an error, the saved states are kept
 		//
 		$extensions = $this->model_extension_ka_extensions_common->checkModules();
-		if (!is_null($extensions)) {
-			return $extensions;
+		if (is_null($extensions)) {
+			$this->lastError = $this->model_extension_ka_extensions_common->getLastError();
+			$this->log->write('checkModules failed: ' . $this->lastError);
 		}
 
-		$kacurl = new Curl();
-
-		
-		$request_url = KaGlobal::getKaStoreURL() . "?route=extension/domain_info";
-		
-		$data = array(
-			'url' => HTTP_CATALOG
-		);
-		$result = $kacurl->request($request_url, $data);
-		
-		$info = var_export($request_url, true) . var_export($result, true) . var_export($data, true);
-		
-		// process the response from the remote server
-		//
-		if (empty($result)) {
-			$this->lastError = 'A request to the license registration server failed with this error:'
-				. $kacurl->getLastError();
-				
-
-			$this->log->write($this->lastError . ' extra:' . $info);
-				
-			return null;
-		}
-		
-		$result = json_decode($result, true);
-		if (!empty($result['error'])) {
-			$this->lastError = $result['error'];
-			return null;
-		}
-
-		if (empty($result['result']) || $result['result'] != 'ok') {
-			$this->lastError = 'Server response does not contain a successful result.';
-			return null;
-		}
-		
-		if (!isset($result['extensions'])) {
-			$this->lastError = 'Unknwon result format.';
-			return null;
-		}
-
-		return $result['extensions'];
+		return $extensions;
 	}
 	
 	/*

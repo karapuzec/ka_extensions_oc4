@@ -87,82 +87,6 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 */	
 	public function registerKey($key, $extension, $edition = null) {
 
-		$ret = '';
-		
-		// send code to the remote server
-		//
-		$data = array(
-			'key'       => $key,
-			'url'       => HTTP_CATALOG,
-			'extension' => $extension,
-		);
-		
-		if (!empty($edition)) {
-			$data['edition'] = $edition;
-		}
-
-		// the API of ka_licenses first, the old script for an old license server
-		//
-		$linked = $this->linkLicense($key, $extension, $edition);
-		if (is_bool($linked)) {
-			if ($linked) {
-				$data['is_registered'] = true;
-				if (!$this->saveReg($extension, $data)) {
-					$this->lastError = 'saveReg failed';
-					return false;
-				}
-			}
-			return $linked;
-		}
-
-		$request_url = KaGlobal::getKaStoreURL() . '?route=extension/register_key';
-
-		$result = $this->kacurl->request($request_url, $data);
-
-		// process the response from the remote server
-		//
-		if (empty($result)) {
-			$this->lastError = 'A request to the license registration server failed with this error:' 
-				. $this->kacurl->getLastError()
-				. '<br />Please try again later.<br /><br />If you cannot activate the license key within 24 ' 
-				. 'hours please contact us at support@ka-station.com.
-			';
-				
-			return false;
-		}
-		
-		$result = json_decode($result, true);
-
-		if (!empty($result['error'])) {
-			$this->lastError = $result['error'];
-			return false;
-		}	
-
-
-		
-		if (empty($result['ext_code'])) {
-			$this->lastError = 'Wrong request parameters:' . var_export($result, true);
-			return false;
-		}
-		
-		$data['is_registered'] = true;
-		if (!$this->saveReg($result['ext_code'], $data)) {
-			$this->lastError = 'saveReg failed';
-			return false;
-		}
-		
-		return true;
-	}
-	
-
-	/*
-		Links the license key to the store with the API of ka_licenses (api/linkLicense, api_version 1).
-		Returns true / false (lastError is set) for the answer of the new server, null when the server
-		does not answer in the format of the API (an old ka-station, the server is not available): the caller
-		sends the old register_key request then.
-	*/
-	protected function linkLicense($key, $extension, $edition = null) {
-
 		$data = array(
 			'api_version'      => $this->license_api_version,
 			'license_key'      => $key,
@@ -175,11 +99,19 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 
 		$result = $this->requestLicenseApi('linkLicense', $data);
 		if (is_null($result)) {
-			return null;
+			$this->lastError = 'A request to the license registration server failed. ' . $this->lastError
+				. '<br />Please try again later.<br /><br />If you cannot activate the license key within 24 '
+				. 'hours please contact us at support@ka-station.com.';
+			return false;
 		}
 
 		if ($result['result'] != 'ok') {
 			$this->lastError = empty($result['message']) ? 'The license key was not accepted.' : $result['message'];
+			return false;
+		}
+
+		if (!$this->saveReg($extension, array('is_registered' => true))) {
+			$this->lastError = 'saveReg failed';
 			return false;
 		}
 
@@ -188,13 +120,20 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 
 
 	/*
-		Sends a request to the API of ka_licenses. Returns the decoded answer with api_version and result or null.
+		Sends a request to the API of ka_licenses. Returns the decoded answer with api_version and result or null
+		(lastError is set): the server is not available, HTTP errors (404 too), an empty answer, not json,
+		no api_version.
 	*/
 	protected function requestLicenseApi($action, $data) {
 
 		$result = $this->kacurl->request(KaGlobal::getKaStoreURL() . '?route=' . self::LICENSE_API_ROUTE . $action, $data);
-		$result = empty($result) ? null : json_decode($result, true);
+		if (empty($result)) {
+			$this->lastError = 'A request to the license registration server failed with this error:' . $this->kacurl->getLastError();
+			return null;
+		}
+		$result = json_decode($result, true);
 		if (!is_array($result) || !isset($result['api_version']) || empty($result['result'])) {
+			$this->lastError = 'The license server returned an invalid answer.';
 			return null;
 		}
 
@@ -239,8 +178,8 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 		Requests the state of the modules from the API of ka_licenses (api/checkModules, api_version 1).
 		Returns extensions in the format of the old domain_info answer (see saveRegAll()):
 			[code => ['is_registered' => 1, ...] or ['is_free' => 1, ...]]
-		Returns null when the server does not answer in the format of the API or on an error,
-		the caller sends the old domain_info request then.
+		Returns null (lastError is set) when the server is not available, its answer is not valid (also 404)
+		or it returned an error: the saved states are not changed then.
 	*/
 	public function checkModules() {
 
@@ -254,7 +193,11 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 		);
 
 		$result = $this->requestLicenseApi('checkModules', $data);
-		if (is_null($result) || $result['result'] != 'ok' || !isset($result['modules']) || !is_array($result['modules'])) {
+		if (is_null($result)) {
+			return null;
+		}
+		if ($result['result'] != 'ok' || !isset($result['modules']) || !is_array($result['modules'])) {
+			$this->lastError = empty($result['message']) ? 'The license server returned an error.' : $result['message'];
 			return null;
 		}
 
