@@ -20,6 +20,13 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 
 	protected $kacurl;
 
+	// the version of the license API of ka_licenses (api/checkModules, api/linkLicense)
+	protected $license_api_version = 1;
+
+	// the route of the license API of the ka_licenses module on the license server
+	const LICENSE_API_ROUTE = 'extension/ka_extensions/ka_licenses/api/';
+
+
 	protected function onLoad() {
 
 		$this->kacurl = new Curl();
@@ -80,57 +87,162 @@ class Common extends \Opencart\Extension\KaExtensions\System\Model {
 */	
 	public function registerKey($key, $extension, $edition = null) {
 
-		$ret = '';
-		
-		// send code to the remote server
-		//
 		$data = array(
-			'key'       => $key,
-			'url'       => HTTP_CATALOG,
-			'extension' => $extension,
+			'api_version'      => $this->license_api_version,
+			'license_key'      => $key,
+			'surface_uri'      => HTTP_CATALOG,
+			'vendor'           => 'ka_extensions',
+			'code'             => $extension,
+			'edition'          => empty($edition) ? $this->getStoreEdition() : $edition,
+			'opencart_version' => VERSION,
 		);
-		
-		if (!empty($edition)) {
-			$data['edition'] = $edition;
-		}
-		
-		$request_url = KaGlobal::getKaStoreURL() . '?route=extension/register_key';
 
-		$result = $this->kacurl->request($request_url, $data);
-
-		// process the response from the remote server
-		//
-		if (empty($result)) {
-			$this->lastError = 'A request to the license registration server failed with this error:' 
-				. $this->kacurl->getLastError()
-				. '<br />Please try again later.<br /><br />If you cannot activate the license key within 24 ' 
-				. 'hours please contact us at support@ka-station.com.
-			';
-				
+		$result = $this->requestLicenseApi('linkLicense', $data);
+		if (is_null($result)) {
+			$this->lastError = 'A request to the license registration server failed. ' . $this->lastError
+				. '<br />Please try again later.<br /><br />If you cannot activate the license key within 24 '
+				. 'hours please contact us at support@ka-station.com.';
 			return false;
 		}
-		
-		$result = json_decode($result, true);		
-		if (!empty($result['error'])) {
-			$this->lastError = $result['error'];
-			return false;
-		}	
 
-		
-		if (empty($result['ext_code'])) {
-			$this->lastError = 'Wrong request parameters:' . var_export($result, true);
+		if ($result['result'] != 'ok') {
+			$this->lastError = empty($result['message']) ? 'The license key was not accepted.' : $result['message'];
 			return false;
 		}
-		
-		$data['is_registered'] = true;
-		if (!$this->saveReg($result['ext_code'], $data)) {
+
+		if (!$this->saveReg($extension, array('is_registered' => true))) {
 			$this->lastError = 'saveReg failed';
 			return false;
 		}
-		
+
 		return true;
 	}
-	
+
+
+	/*
+		Sends a request to the API of ka_licenses. Returns the decoded answer with api_version and result or null
+		(lastError is set): the server is not available, HTTP errors (404 too), an empty answer, not json,
+		no api_version.
+	*/
+	protected function requestLicenseApi($action, $data) {
+
+		$result = $this->kacurl->request(KaGlobal::getKaStoreURL() . '?route=' . self::LICENSE_API_ROUTE . $action, $data);
+		if (empty($result)) {
+			$this->lastError = 'A request to the license registration server failed with this error:' . $this->kacurl->getLastError();
+			return null;
+		}
+		$result = json_decode($result, true);
+		if (!is_array($result) || !isset($result['api_version']) || empty($result['result'])) {
+			$this->lastError = 'The license server returned an invalid answer.';
+			return null;
+		}
+
+		return $result;
+	}
+
+
+	/*
+		Returns the edition of license codes for this store: 'oc4' for Opencart 4.x
+	*/
+	public function getStoreEdition() {
+		return 'oc' . (int)VERSION;
+	}
+
+
+	/*
+		Returns modules of Ka Extensions in the store (extension folders with 'ka_type' = 'ka_extensions' in
+		install.json): [code => ['vendor' => .., 'code' => .., 'edition' => ..]]. The edition comes from
+		install.json ('edition'), the store edition by default.
+	*/
+	public function getLicenseModules() {
+
+		$modules = array();
+		foreach (glob(DIR_EXTENSION . '*/install.json') ?: array() as $file) {
+			$info = json_decode((string)file_get_contents($file), true);
+			if (empty($info['ka_type']) || $info['ka_type'] != 'ka_extensions') {
+				continue;
+			}
+			$code = basename(dirname($file));
+			$modules[$code] = array(
+				'vendor'  => 'ka_extensions',
+				'code'    => $code,
+				'edition' => empty($info['edition']) ? $this->getStoreEdition() : $info['edition'],
+			);
+		}
+
+		return $modules;
+	}
+
+
+	/*
+		Requests the state of the modules from the API of ka_licenses (api/checkModules, api_version 1).
+		Returns extensions in the format of the old domain_info answer (see saveRegAll()):
+			[code => ['is_registered' => 1, ...] or ['is_free' => 1, ...]]
+		Returns null (lastError is set) when the server is not available, its answer is not valid (also 404)
+		or it returned an error: the saved states are not changed then.
+	*/
+	public function checkModules() {
+
+		$modules = $this->getLicenseModules();
+
+		$data = array(
+			'api_version'      => $this->license_api_version,
+			'url'              => HTTP_CATALOG,
+			'opencart_version' => VERSION,
+			'modules'          => array_values($modules),
+		);
+
+		$result = $this->requestLicenseApi('checkModules', $data);
+		if (is_null($result)) {
+			return null;
+		}
+		if ($result['result'] != 'ok' || !isset($result['modules']) || !is_array($result['modules'])) {
+			$this->lastError = empty($result['message']) ? 'The license server returned an error.' : $result['message'];
+			return null;
+		}
+
+		return $this->getExtensionsByModules($result['modules'], $modules);
+	}
+
+
+	/*
+		Converts modules of the checkModules answer to the old extensions format. Unregistered and expired
+		modules are not in the list (as in the old format).
+	*/
+	protected function getExtensionsByModules($response_modules, $modules) {
+
+		$codes = array_keys($modules);
+
+		$extensions = array();
+		foreach (array_values($response_modules) as $idx => $module) {
+			if (!isset($codes[$idx]) || empty($module['status'])) {
+				continue;
+			}
+			$code = $codes[$idx];
+
+			if ($module['status'] == 'registered') {
+				$masked_key = isset($module['masked_key']) ? $module['masked_key'] : '';
+				$extensions[$code] = array(
+					'masked_key'    => $masked_key,
+					'license_key'   => $masked_key,
+					'is_registered' => 1,
+				);
+				if (!empty($module['expiry_at'])) {
+					$extensions[$code]['expiry_date'] = substr($module['expiry_at'], 0, 10);
+				}
+			} elseif ($module['status'] == 'free') {
+				$extensions[$code] = array(
+					'license_key' => '',
+					'masked_key'  => '',
+					'expiry_date' => '',
+					'is_free'     => 1,
+				);
+			}
+		}
+
+		return $extensions;
+	}
+
 
 	public function isRegistered($extension_code) {
 		$ka_reg = $this->model_setting_setting->getSetting('kareg');

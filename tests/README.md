@@ -31,6 +31,10 @@ setup, for example `--tests=testInstall,testModification,testSafeMode`).
 - `testModification` - enable 'Ka Extensions Ocmod', refresh, framework.php is patched, all ocmod operations
   are applied, the Modification page loads without errors
 - `testMenu` - 'Ka Extensions' item is in the Extensions menu, the Ka Extensions page opens
+- `testLicenseServer` - the license requests of the Ka Extensions page with a local test server
+  (`fixtures/license_server/router.php`, KA_STORE_URL in admin/config.php): checkModules with all modules and the
+  edition oc4, a module of another edition, free / expired modules, the fallback to the old domain_info request on an error,
+  an old server, register_key with api_version on a new and an old server
 - `testSafeMode` - the safe mode code is saved on the Ka Extensions page (wrong characters are rejected), the
   `route=ka_safe_mode&code=` URL sets an httponly SameSite=Lax cookie and turns kamod off for this browser only,
   a wrong code is ignored, the code survives a kamod rebuild, a changed or empty code and the exit URL turn safe mode off
