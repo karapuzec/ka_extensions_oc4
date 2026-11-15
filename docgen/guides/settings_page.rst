@@ -128,3 +128,30 @@ it is used by the *Save* button:
 
     Blocks inside ``settings_page_contents`` (``contents``, ``settings_contents``) belong to an embedded
     card template and cannot be overridden from a child template.
+
+Keeping Settings on Uninstallation
+----------------------------------
+
+By default ``ControllerSettings::uninstall()`` deletes the settings of the module. A module that should keep
+them (API keys, addresses), so they are used again after a new installation, sets the property:
+
+.. code-block:: php
+
+    protected $keep_settings_on_uninstall = true;
+
+Hidden Values
+-------------
+
+``ControllerSettings`` saves the whole setting group ``<ext_code>``, so values that are not fields of the
+settings page (the installed version, counters, data loaded from external services) are stored with
+``\Opencart\Extension\KaExtensions\System\HiddenSettings`` in the group ``<ext_code>_hidden``:
+
+.. code-block:: php
+
+    use \Opencart\Extension\KaExtensions\System\HiddenSettings;
+
+    HiddenSettings::set('my_module', 'products', ['P' => 'EXPRESS WORLDWIDE']);
+    $products = HiddenSettings::get('my_module', 'products', []);
+    $count    = HiddenSettings::increase('my_module', 'requests');
+
+Every call reads or writes one key only. Arrays are stored as JSON.

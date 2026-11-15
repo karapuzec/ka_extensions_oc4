@@ -50,7 +50,7 @@ Classes in the ``\Opencart\Extension\KaExtensions\System`` namespace
 - ``ControllerForm``, ``TraitControllerForm`` - forms built from a list of fields;
 - ``Db``, ``QB``, ``Tables`` - database helpers (see :doc:`database`);
 - ``Mail`` - emails from twig templates (see :doc:`mail`);
-- ``KaGlobal``, ``Language``, ``Store``, ``Arrays``, ``Format``, ``Curl``, ``UrlParams``,
+- ``KaGlobal``, ``Language``, ``Store``, ``Arrays``, ``Format``, ``Curl``, ``HiddenSettings``, ``UrlParams``,
   ``Pagination`` - helpers.
 
 The API reference of these classes is a part of this documentation.

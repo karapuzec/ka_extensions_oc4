@@ -12,13 +12,20 @@ namespace Opencart\Extension\KaExtensions\System;
 /**
 	A base class for a module settings page. It incapsulates all required fields and methods:
 	shows the settings form, validates and saves settings, sets default values on installation and
-	deletes settings on uninstallation.
+	deletes settings on uninstallation (unless the module sets $keep_settings_on_uninstall).
 
 	@package Controller
 */
 abstract class ControllerSettings extends ControllerInstaller {
 
 	use TraitControllerForm;
+
+	/*
+		When it is true, uninstall() keeps the settings of the module in the database, so they are
+		used again when the module is installed again (API keys, addresses and so on). By default
+		the settings are deleted as before.
+	*/
+	protected $keep_settings_on_uninstall = false;
 
 	/**
 	 Loads language files of the library and the extension and prepares the settings fields.
@@ -190,7 +197,8 @@ abstract class ControllerSettings extends ControllerInstaller {
 
 		
 	/**
-	 Deletes the extension settings and uninstalls the extension.
+	 Deletes the extension settings (unless $keep_settings_on_uninstall is true) and uninstalls the
+	 extension.
 
 	 $params — see ControllerInstaller::uninstall().
 
@@ -203,7 +211,9 @@ abstract class ControllerSettings extends ControllerInstaller {
 			throw new \Exception("This method can be called from the ka extensions page only");
 		}
 	
-		$this->model_setting_setting->deleteSetting($this->ext_code);
+		if (!$this->keep_settings_on_uninstall) {
+			$this->model_setting_setting->deleteSetting($this->ext_code);
+		}
 		
 		return parent::uninstall($params);
 	}
