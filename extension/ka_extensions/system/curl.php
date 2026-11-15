@@ -20,6 +20,9 @@ class Curl {
 
 	protected $lastError = '';
 	const MAX_RESOLVE_ATTEMPTS = 3;
+
+	// HTTP status code of the last response of request(), 0 when no response was received
+	protected $last_status_code = 0;
 	
 	protected $last_file_info = array();
 	
@@ -30,6 +33,16 @@ class Curl {
 	*/
 	public function getLastError() {
 		return $this->lastError;
+	}
+
+	/**
+	 Returns the HTTP status code of the last response received by request() (after redirects), for
+	 example 200 or 400. It is 0 when no response was received (connection error, timeout).
+
+	 @return int
+	*/
+	public function getLastStatusCode() {
+		return $this->last_status_code;
 	}
 	
 
@@ -86,7 +99,13 @@ class Curl {
 	 	timeout — request timeout in seconds (8 by default);
 	 	user-agent — text for user-agent value;
 	 	extra_headers — array of extra headers (name => value);
-	 	webauth_username, webauth_password — credentials for http authorization.
+	 	webauth_username, webauth_password — credentials for the http Basic authorization. They are
+	 	sent as they are (the password was url-encoded before 5.1.1.2);
+	 	verify_ssl — verify the certificate of the server (false by default, as before 5.1.1.2).
+	 	Modules calling external APIs should set it to true.
+
+	 The body of an error response (HTTP 4xx, 5xx) is returned too, its status code is available
+	 through getLastStatusCode().
 
 	 @return string|null|false Response body; null or false on error (see getLastError()).
 	*/
@@ -103,6 +122,7 @@ class Curl {
 	
 		$message = null;
 		$this->lastError = '';
+		$this->last_status_code = 0;
 		
 		$tmp_url        = $url;
 		$redirect_count = 0;
@@ -122,8 +142,11 @@ class Curl {
 			curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 			curl_setopt($curl, CURLOPT_HEADER, true);
 			curl_setopt($curl, CURLOPT_TIMEOUT, $options['timeout']);
-			curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
-			curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+
+			// the server certificate is verified only when the caller asks for it (backward compatibility)
+			$verify_ssl = !empty($options['verify_ssl']);
+			curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, $verify_ssl);
+			curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, $verify_ssl ? 2 : 0);
 			if (!empty($data)) {
 				if (is_array($data)) {
 					curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data, '', '&'));
@@ -136,6 +159,10 @@ class Curl {
 			// by the user-agent string
 			//
 			$opt_headers = array();
+
+			// no 'Expect: 100-continue' for large POST bodies, otherwise the interim 100 response
+			// is parsed instead of the real one
+			$opt_headers[] = 'Expect:';
 
 			if (!empty($options['user-agent'])) {
 				$opt_headers[] = 'User-Agent: ' . $options['user-agent'];
@@ -164,7 +191,9 @@ class Curl {
 			// specify web authorization
 			//
 			if (!empty($options['webauth_username']) && !empty($options['webauth_password'])) {
-				curl_setopt($curl, CURLOPT_USERPWD, $options['webauth_username'] . ":" . rawurlencode($options['webauth_password']));
+				curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+				curl_setopt($curl, CURLOPT_USERNAME, $options['webauth_username']);
+				curl_setopt($curl, CURLOPT_PASSWORD, $options['webauth_password']);
 			}
 				
 			// use more attempts to resolve host name. Sometimes curl fails at resolving 
@@ -197,6 +226,7 @@ class Curl {
 			$header_block = substr($response, 0, $msg_start);
 			$headers      = $this->parseHttpHeader($header_block);				
 			if (empty($headers)) {
+				$this->last_status_code = 0;
 				if (strlen($response) > 1000) {
 					$this->lastError = 'No headers received. Response size is ' . strlen($response);
 				} else {
@@ -206,6 +236,7 @@ class Curl {
 			}
 
 			$message = substr($response, $msg_start+4);
+			$this->last_status_code = (int)$headers['status']['status_code'];
 			
 			if ($headers['status']['status_code'] >= 200 && $headers['status']['status_code'] < 300) {
 				break;

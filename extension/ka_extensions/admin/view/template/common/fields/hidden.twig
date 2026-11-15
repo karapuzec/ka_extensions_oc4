@@ -10,4 +10,4 @@
 	language_id - value is defined for the specified language id
 	array       - field is in that array
 #}
-<input type="hidden" name="{% if array %}{{ array }}[{% endif %}{% if field.name %}{{ field.name }}{% else %}{{ field.code }}{% endif %}{% if array %}]{% endif %}" value="{{ field.value }}" id="input-{{ field.code }}{{ language_id }}" />
+<input type="hidden" name="{% if array %}{{ array }}[{% endif %}{% if field.name %}{{ field.name }}{% else %}{{ field.code }}{% endif %}{% if array %}]{% endif %}" value="{{ field.value|ka_escape }}" id="input-{{ field.code }}{{ language_id }}" />

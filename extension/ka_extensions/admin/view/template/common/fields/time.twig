@@ -17,7 +17,7 @@
             	<div class="input-group time">
 	              <input {% if field.required %} required {% endif %} 
 	              	type="text" name="{% if array %}{{ array }}[{% endif %}{% if field.name %}{{ field.name }}{% else %}{{ field.code }}{% endif %}{% if array %}]{% endif %}" 
-	              	value="{{ field.value }}" placeholder="{{ field.placeholder }}" 
+	              	value="{{ field.value|ka_escape }}" placeholder="{{ field.placeholder|ka_escape }}" 
 	              	data-date-format="HH:mm"
 	              	id="input-{{ field.code }}" 
 	              	class="form-control"

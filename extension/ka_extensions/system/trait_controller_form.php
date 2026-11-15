@@ -124,6 +124,28 @@ trait TraitControllerForm {
 	
 
 	/**
+	 Returns the title of a field for messages: 'title' of the field, the language text txt_title_<code>
+	 (as the field templates show it) or the code when there is no title.
+
+	 $code — field code.
+	 $field — field metadata.
+
+	 @return string
+	*/
+	protected function getFieldTitle($code, $field) {
+
+		if (!empty($field['title'])) {
+			return $field['title'];
+		}
+		if ($this->language->has('txt_title_' . $code)) {
+			return $this->language->get('txt_title_' . $code);
+		}
+
+		return $code;
+	}
+
+
+	/**
 	 Validates a field (required, presence, number min and max) and writes errors to $this->errors.
 
 	 $code — field code.
@@ -136,7 +158,7 @@ trait TraitControllerForm {
 	
 		if (!empty($field['required'])) {
 			if (empty($post[$code])) {
-				$this->errors[$code] = sprintf($this->language->get('Field "%s" cannot be empty'), $code);
+				$this->errors[$code] = sprintf($this->language->get('Field "%s" cannot be empty'), $this->getFieldTitle($code, $field));
 				return false;
 			}
 		}
@@ -145,7 +167,7 @@ trait TraitControllerForm {
 
 			if (in_array($field['type'], array('number', 'text', 'textarea'))) {
 				if (!isset($post[$code])) {
-					$this->errors[$code] = sprintf($this->language->get('The field %s was not found'), $this->language->get('txt_title_' . $code));
+					$this->errors[$code] = sprintf($this->language->get('The field %s was not found'), $this->getFieldTitle($code, $field));
 					return false;
 				}
 			}

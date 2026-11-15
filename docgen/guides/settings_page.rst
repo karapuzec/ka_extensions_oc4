@@ -68,7 +68,8 @@ Field Format
 ``options``
     Options of ``select``, ``radio``, ``checkboxes``.
 ``title``
-    Field title. Without it the language variable ``txt_title_<code>`` is used.
+    Field title. Without it the language variable ``txt_title_<code>`` is used. Validation messages show
+    the title too.
 ``tooltip``
     Help text under the field. Without it the language variable ``txt_tooltip_<code>`` is used if it exists.
 ``placeholder``
@@ -77,6 +78,10 @@ Field Format
     The value must not be empty (``0`` is treated as empty).
 ``min_value``, ``max_value``
     Limits for ``number`` fields.
+
+Field templates escape values, placeholders and option values with the Twig filter ``ka_escape``
+(values saved by OpenCart with ``htmlspecialchars()`` are not encoded twice). Titles, tooltips and
+option labels of ``radio`` and ``checkboxes`` are printed as they are, they may contain HTML.
 
 Form Fields (``TraitControllerForm``)
 -------------------------------------
@@ -128,3 +133,30 @@ it is used by the *Save* button:
 
     Blocks inside ``settings_page_contents`` (``contents``, ``settings_contents``) belong to an embedded
     card template and cannot be overridden from a child template.
+
+Keeping Settings on Uninstallation
+----------------------------------
+
+By default ``ControllerSettings::uninstall()`` deletes the settings of the module. A module that should keep
+them (API keys, addresses), so they are used again after a new installation, sets the property:
+
+.. code-block:: php
+
+    protected $keep_settings_on_uninstall = true;
+
+Hidden Values
+-------------
+
+``ControllerSettings`` saves the whole setting group ``<ext_code>``, so values that are not fields of the
+settings page (the installed version, counters, data loaded from external services) are stored with
+``\Opencart\Extension\KaExtensions\System\HiddenSettings`` in the group ``<ext_code>_hidden``:
+
+.. code-block:: php
+
+    use \Opencart\Extension\KaExtensions\System\HiddenSettings;
+
+    HiddenSettings::set('my_module', 'products', ['P' => 'EXPRESS WORLDWIDE']);
+    $products = HiddenSettings::get('my_module', 'products', []);
+    $count    = HiddenSettings::increase('my_module', 'requests');
+
+Every call reads or writes one key only. Arrays are stored as JSON.

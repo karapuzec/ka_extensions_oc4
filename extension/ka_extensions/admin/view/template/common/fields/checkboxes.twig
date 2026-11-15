@@ -15,7 +15,7 @@
 		  <div class="form-check">
 	      <input type="checkbox" 
 	      	name="{% if field.name %}{{ field.name }}{% else %}{{ field.code }}{% endif %}[]" 
-	      	value="{{ ok }}" 
+	      	value="{{ ok|ka_escape }}" 
 	      	{% if ok in field.value %} checked="checked" {% endif %}
 	      	class="form-check-input"
 	      />

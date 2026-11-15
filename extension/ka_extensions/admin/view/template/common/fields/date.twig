@@ -16,7 +16,7 @@
       	<div class="input-group date">
           <input {% if field.required %} required {% endif %} 
           	type="text" name="{% if array %}{{ array }}[{% endif %}{% if field.name %}{{ field.name }}{% else %}{{ field.code }}{% endif %}{% if array %}]{% endif %}" 
-          	value="{{ field.value }}" placeholder="{{ field.placeholder }}" 
+          	value="{{ field.value|ka_escape }}" placeholder="{{ field.placeholder|ka_escape }}" 
           	data-date-format="YYYY-MM-DD"
           	id="input-{{ field.code }}" 
           	class="form-control {% if field.error %} is-invalid {% endif %}"

@@ -14,7 +14,7 @@
               <select name="{% if field.name %}{{ field.name }}{% else %}{{ field.code }}{% endif %}" id="input-{{ field.code }}" class="form-select {% if field.error %} is-invalid {% endif %}">
 							  {% if not hide_first_line %}<option value="">{{ t('text_select') }}</option>{% endif %}
 								{% for k,v in field.options %} 
-								  <option value="{{ k }}" {% if (field.value == k) %} selected="selected" {% endif %}>{{ v }}</option>
+								  <option value="{{ k|ka_escape }}" {% if (field.value == k) %} selected="selected" {% endif %}>{{ v|ka_escape }}</option>
 								{% endfor %}
 							</select>
 
