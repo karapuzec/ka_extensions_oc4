@@ -68,7 +68,8 @@ Field Format
 ``options``
     Options of ``select``, ``radio``, ``checkboxes``.
 ``title``
-    Field title. Without it the language variable ``txt_title_<code>`` is used.
+    Field title. Without it the language variable ``txt_title_<code>`` is used. Validation messages show
+    the title too.
 ``tooltip``
     Help text under the field. Without it the language variable ``txt_tooltip_<code>`` is used if it exists.
 ``placeholder``
@@ -77,6 +78,10 @@ Field Format
     The value must not be empty (``0`` is treated as empty).
 ``min_value``, ``max_value``
     Limits for ``number`` fields.
+
+Field templates escape values, placeholders and option values with the Twig filter ``ka_escape``
+(values saved by OpenCart with ``htmlspecialchars()`` are not encoded twice). Titles, tooltips and
+option labels of ``radio`` and ``checkboxes`` are printed as they are, they may contain HTML.
 
 Form Fields (``TraitControllerForm``)
 -------------------------------------

@@ -1,10 +1,13 @@
 <?php
 /*
 	Tests of library services without an OpenCart store: Curl (Basic authorization, status codes,
-	large POST bodies, certificate verification) and HiddenSettings (on a temporary database).
+	large POST bodies, certificate verification), forms (validation messages, escaping of field
+	values in the field templates) and HiddenSettings (on a temporary database).
 
 	Usage:
-		php tests/services.php [--port=8099] [--db=kat_ext_services]
+		php tests/services.php [--port=8099] [--db=kat_ext_services] [--twig=<OpenCart system/storage/vendor>]
+
+	The field templates are rendered only with --twig (the Twig library of OpenCart 4).
 
 	Environment:
 		KA_TEST_DB_HOST (localhost), KA_TEST_DB_USER (root), KA_TEST_DB_PASSWORD ('')
@@ -18,10 +21,12 @@ $lib = dirname(__DIR__) . '/extension/ka_extensions/system/';
 require_once($lib . 'ka_global.php');
 require_once($lib . 'curl.php');
 require_once($lib . 'hidden_settings.php');
+require_once($lib . 'trait_controller_form.php');
 
 use \Opencart\Extension\KaExtensions\System\Curl;
 use \Opencart\Extension\KaExtensions\System\HiddenSettings;
 use \Opencart\Extension\KaExtensions\System\KaGlobal;
+use \Opencart\Extension\KaExtensions\System\TwigExtension;
 
 /*
 	A minimal database object with the methods of the OpenCart DB class used by HiddenSettings.
@@ -69,7 +74,7 @@ class ServicesTestRegistry {
 	}
 }
 
-$opt = getopt('', array('port:', 'db:'));
+$opt = getopt('', array('port:', 'db:', 'twig:'));
 $port = isset($opt['port']) ? (int)$opt['port'] : 8099;
 $db_name = isset($opt['db']) ? $opt['db'] : 'kat_ext_services';
 
@@ -138,12 +143,107 @@ if ($ret) {
 	usleep(700000);
 
 	$body = $curl->request('https://localhost:' . $tls_port . '/');
-	check(empty($body) && strpos($curl->getLastError(), 'CURL error (60)') !== false, 'a self-signed certificate is rejected by default');
+	check(!empty($body) && $curl->getLastStatusCode() == 200, 'a self-signed certificate is accepted by default (no verification as before)');
+
+	$body = $curl->request('https://localhost:' . $tls_port . '/', array(), array('verify_ssl' => true));
+	check(empty($body) && strpos($curl->getLastError(), 'CURL error (60)') !== false, "'verify_ssl' => true rejects it");
 
 	$body = $curl->request('https://localhost:' . $tls_port . '/', array(), array('verify_ssl' => false));
 	check(!empty($body) && $curl->getLastStatusCode() == 200, "'verify_ssl' => false accepts it");
 
 	proc_terminate($tls);
+}
+
+// Forms: validation messages and field templates
+//
+echo "Forms\n";
+
+class ServicesTestLanguage {
+
+	public $data = array(
+		'txt_title_from_city' => 'City',
+		'Field "%s" cannot be empty' => 'Field "%s" cannot be empty',
+		'The field %s was not found' => 'The field %s was not found',
+		'text_select' => '--- Please Select ---',
+	);
+
+	public function get($key) {
+		return isset($this->data[$key]) ? $this->data[$key] : $key;
+	}
+
+	public function has($key) {
+		return isset($this->data[$key]);
+	}
+}
+
+class ServicesTestForm {
+	use \Opencart\Extension\KaExtensions\System\TraitControllerForm;
+
+	public $language;
+
+	public function __construct() {
+		$this->language = new ServicesTestLanguage();
+		$this->errors   = array();
+	}
+
+	public function check($code, $field, $post) {
+		$this->errors = array();
+		$this->validateField($code, $field, $post);
+		return isset($this->errors[$code]) ? $this->errors[$code] : '';
+	}
+}
+
+$form = new ServicesTestForm();
+check($form->check('from_city', array('type' => 'text', 'required' => true), array('from_city' => '')) == 'Field "City" cannot be empty', 'a required field: the message has the language title, not the code');
+check($form->check('from_city', array('type' => 'text', 'required' => true, 'title' => 'Shipper city'), array()) == 'Field "Shipper city" cannot be empty', "a required field: the message has 'title' of the field");
+check($form->check('no_title', array('type' => 'text', 'required' => true), array()) == 'Field "no_title" cannot be empty', 'a required field without a title: the code');
+check($form->check('from_city', array('type' => 'text'), array()) == 'The field City was not found', 'a missing field: the title');
+check($form->check('from_city', array('type' => 'text', 'required' => true), array('from_city' => 'Berlin')) == '', 'a filled required field has no error');
+
+if (empty($opt['twig'])) {
+	echo "  skip ka_escape and field templates: no --twig=<OpenCart system/storage/vendor>\n";
+} else {
+	require_once(rtrim($opt['twig'], '/') . '/autoload.php');
+	require_once($lib . 'twig_extension.php');
+
+	check(TwigExtension::escape('a"b<c>\'d&e') === 'a&quot;b&lt;c&gt;&#039;d&amp;e', 'ka_escape: quotes, tags and ampersands');
+	check(TwigExtension::escape('Tom &amp; Jerry &quot;x&quot;') === 'Tom &amp; Jerry &quot;x&quot;', 'ka_escape: values saved by OpenCart (htmlspecialchars) are not encoded twice');
+	check(TwigExtension::escape(null) === '' && TwigExtension::escape(5) === '5' && TwigExtension::escape(array('a')) === array('a'), 'ka_escape: null, numbers, arrays');
+
+	$registry = new ServicesTestRegistry();
+	$registry->set('language', new ServicesTestLanguage());
+	KaGlobal::init($registry);
+
+	$loader = new \Twig\Loader\FilesystemLoader();
+	$loader->addPath(dirname(__DIR__) . '/extension/ka_extensions/admin/view/template/common', 'ka_common');
+	$twig = new \Twig\Environment($loader, array('autoescape' => false));
+	$twig->addExtension(new TwigExtension());
+
+	$evil = '"><script>alert(1)</script>';
+	$render = function($type, $field) use ($twig) {
+		$field = array_merge(array('code' => 'f', 'title' => 'F'), $field);
+		return $twig->render('@ka_common/fields/' . $type . '.twig', array('field' => $field));
+	};
+
+	foreach (array('text', 'number', 'email', 'tel', 'password', 'hidden', 'date', 'time', 'datetime', 'file', 'image') as $type) {
+		$html = $render($type, array('value' => $evil, 'placeholder' => $evil));
+		check(strpos($html, '<script>alert') === false && strpos($html, 'value="&quot;&gt;&lt;script&gt;') !== false, "$type: the value is escaped");
+	}
+
+	$html = $render('textarea', array('value' => '</textarea><b>x</b>'));
+	check(strpos($html, '</textarea><b>') === false && strpos($html, '&lt;/textarea&gt;&lt;b&gt;') !== false, 'textarea: the value is escaped');
+
+	$html = $render('text', array('value' => 'Tom &amp; Jerry'));
+	check(strpos($html, 'value="Tom &amp; Jerry"') !== false, 'text: a value saved by OpenCart is shown as it is');
+
+	$html = $render('select', array('value' => 'a"b', 'options' => array('a"b' => '<i>A</i>', 'c' => 'C')));
+	check(strpos($html, 'value="a&quot;b"  selected="selected"') !== false && strpos($html, '&lt;i&gt;A&lt;/i&gt;') !== false, 'select: option values and labels are escaped, the selected one is found');
+
+	$html = $render('radio', array('value' => 'c', 'options' => array('a"b' => 'A', 'c' => 'C')));
+	check(strpos($html, 'value="a&quot;b"') !== false, 'radio: option values are escaped');
+
+	$html = $render('checkboxes', array('value' => array('c'), 'options' => array('a"b' => 'A', 'c' => 'C')));
+	check(strpos($html, 'value="a&quot;b"') !== false && preg_match('/value="c"\s*checked/', $html), 'checkboxes: option values are escaped, checked ones are found');
 }
 
 // HiddenSettings

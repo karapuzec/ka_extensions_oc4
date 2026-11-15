@@ -12,7 +12,7 @@
 {% block field_value %}
                 <div class="card image">
                   <img src="{{ field.thumb }}" alt="" title="" id="thumb-{{ field.code }}" data-oc-placeholder="{{ field.default_thumb }}" class="card-img-top"/>
-                  <input type="hidden" name="{{ field.code }}" value="{{ field.value }}" id="input-{{ field.code }}"/>
+                  <input type="hidden" name="{{ field.code }}" value="{{ field.value|ka_escape }}" id="input-{{ field.code }}"/>
                   <div class="card-body">
                     <button type="button" 
                     	data-oc-toggle="image"

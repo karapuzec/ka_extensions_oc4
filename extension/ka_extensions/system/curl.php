@@ -101,8 +101,8 @@ class Curl {
 	 	extra_headers — array of extra headers (name => value);
 	 	webauth_username, webauth_password — credentials for the http Basic authorization. They are
 	 	sent as they are (the password was url-encoded before 5.1.1.2);
-	 	verify_ssl — verify the certificate of the server, true by default. Set it to false only for
-	 	servers with self-signed certificates (before 5.1.1.2 the certificate was never verified).
+	 	verify_ssl — verify the certificate of the server (false by default, as before 5.1.1.2).
+	 	Modules calling external APIs should set it to true.
 
 	 The body of an error response (HTTP 4xx, 5xx) is returned too, its status code is available
 	 through getLastStatusCode().
@@ -143,8 +143,8 @@ class Curl {
 			curl_setopt($curl, CURLOPT_HEADER, true);
 			curl_setopt($curl, CURLOPT_TIMEOUT, $options['timeout']);
 
-			// the server certificate is verified unless the caller turns it off explicitly
-			$verify_ssl = !isset($options['verify_ssl']) || !empty($options['verify_ssl']);
+			// the server certificate is verified only when the caller asks for it (backward compatibility)
+			$verify_ssl = !empty($options['verify_ssl']);
 			curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, $verify_ssl);
 			curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, $verify_ssl ? 2 : 0);
 			if (!empty($data)) {

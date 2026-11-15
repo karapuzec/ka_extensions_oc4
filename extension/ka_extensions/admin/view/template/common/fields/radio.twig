@@ -13,7 +13,7 @@
 
             	{% for k,v in field.options %}
 								<label class="radio-inline">	              	
-                <input {% if field.required %} required {% endif %} type="radio" name="{% if field.name %}{{ field.name }}{% else %}{{ field.code }}{% endif %}" value="{{ k }}" 
+                <input {% if field.required %} required {% endif %} type="radio" name="{% if field.name %}{{ field.name }}{% else %}{{ field.code }}{% endif %}" value="{{ k|ka_escape }}" 
                   	{% if field.value == k %} checked="checked" {% endif %}
                   />
                   {{ v }}</label>

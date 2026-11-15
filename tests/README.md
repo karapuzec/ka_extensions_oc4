@@ -51,8 +51,10 @@ php tests/build-package.php /path/to/ka_extensions.ocmod.zip
 
 `tests/services.php` checks library services without a store: `Curl` (Basic authorization with special
 characters in the password, `getLastStatusCode()`, the body of 4xx/5xx responses, a large POST body,
-a self-signed certificate is rejected by default and accepted with `'verify_ssl' => false`; it needs
-`openssl`) and `HiddenSettings` (on a temporary database `kat_ext_services`, which is dropped at the end):
+a self-signed certificate is accepted by default and with `'verify_ssl' => false`, rejected with `'verify_ssl' => true`; it needs
+`openssl`), forms (messages of required fields show the field title; with `--twig` the `ka_escape` filter and
+the field templates are rendered with values containing quotes and tags) and `HiddenSettings` (on a temporary
+database `kat_ext_services`, which is dropped at the end):
 ```
-php tests/services.php [--port=8099]
+php tests/services.php [--port=8099] [--twig=/path/to/opencart/upload/system/storage/vendor]
 ```
